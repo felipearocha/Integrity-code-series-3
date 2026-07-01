@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Integrity Code Series — Week 3 — Governing Equations</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        tags: 'ams'
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    :root {
+      --navy: #1b3a5c;
+      --steel: #4c80b0;
+      --red: #8c2318;
+      --teal: #2e7d7b;
+      --charcoal: #333333;
+      --gold: #8B6914;
+      --bg: #fbfbfb;
+      --card: #ffffff;
+      --border: #e2e6ec;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 24px 96px 24px;
+      color: var(--charcoal);
+      background: var(--bg);
+      line-height: 1.55;
+    }
+    header {
+      border-bottom: 2px solid var(--navy);
+      padding-bottom: 18px;
+      margin-bottom: 26px;
+    }
+    h1 { color: var(--navy); font-size: 26px; margin: 0 0 6px 0; }
+    .subtitle { color: var(--steel); font-size: 14px; margin: 0; }
+    h2 {
+      color: var(--navy);
+      border-left: 4px solid var(--teal);
+      padding-left: 12px;
+      margin-top: 38px;
+      font-size: 19px;
+    }
+    h3 { color: var(--charcoal); margin-top: 26px; margin-bottom: 6px; font-size: 15px; font-weight: 700; }
+    .eq-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin: 12px 0 18px 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .src { font-size: 12px; color: var(--gold); font-style: italic; margin: 6px 0 10px 0; }
+    .code-ref {
+      font-family: "SF Mono", "Consolas", "Menlo", monospace;
+      font-size: 11.5px;
+      color: var(--steel);
+      background: #f1f4f7;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .toc {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 20px;
+      margin-bottom: 30px;
+    }
+    .toc ol { margin: 4px 0 0 0; padding-left: 22px; }
+    .toc a { color: var(--navy); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; color: var(--red); }
+    .note {
+      background: #fff8e6;
+      border-left: 3px solid var(--gold);
+      padding: 10px 14px;
+      margin: 14px 0;
+      font-size: 13px;
+      color: #5b4a1d;
+    }
+    .disclaimer {
+      margin-top: 50px;
+      padding: 16px 20px;
+      background: #fef0ee;
+      border-left: 3px solid var(--red);
+      font-size: 13px;
+      color: #6b2418;
+    }
+    footer {
+      margin-top: 36px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: #888;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Integrity Code Series — Week 3</h1>
+  <p class="subtitle">F1 Lap Simulation — Six Coupled ODEs Space-Marched Along Arc Length — Governing Equations Reference</p>
+  <p class="subtitle"><strong>Felipe Rocha</strong></p>
+</header>
+
+<div class="note">
+  <strong>Scope of sourcing.</strong> This package is a self-contained classical-dynamics lap
+  model. The equations below are standard textbook mechanics (Newton's second law, the
+  aerodynamic force law, a first-order lag filter, and a Gaussian window) combined with
+  engineering coefficients chosen for the model. No external standard or paper is claimed as a
+  source; every relation and constant reproduced here is transcribed verbatim from this
+  repository's own <span class="code-ref">README.md</span> and
+  <span class="code-ref">src/</span> code — nothing has been added that is not already in the
+  repository. Relations that are standard physics are tagged <strong>[SOURCE]</strong> (classical
+  mechanics); model-specific proxies and tuned coefficients are tagged <strong>[ASSUMED]</strong>.
+</div>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#aero">Aerodynamics — Mode Filter &amp; Forces</a></li>
+    <li><a href="#traction">Traction Ceiling &amp; Slip-Angle Proxy</a></li>
+    <li><a href="#eom">Master Equation of Motion</a></li>
+    <li><a href="#thermal">Tyre Thermal Model &amp; Grip Window</a></li>
+    <li><a href="#wear">Tyre Wear</a></li>
+    <li><a href="#ers">ERS State of Charge</a></li>
+    <li><a href="#integration">Space-Marched Integration</a></li>
+  </ol>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="aero">1. Aerodynamics — Mode Filter &amp; Forces</h2>
+
+<h3>1.1 Aero-mode filter (spatial ODE)</h3>
+<div class="eq-card">
+$$
+\frac{dm}{ds} \;=\; \frac{m_{\text{raw}} - m}{\tau_{\text{aero}}},
+\qquad \tau_{\text{aero}} = 40\ \text{m}
+$$
+<p class="src">[ASSUMED] First-order spatial lag that smooths the discrete high-downforce / low-drag mode switch along arc length; smoothing length is a model parameter.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → run_lap (aero-mode filter step)</span>.</p>
+</div>
+
+<h3>1.2 Aero-coefficient blend</h3>
+<div class="eq-card">
+$$
+C_d \;=\; (1-m)\,C_{d,Z} + m\,C_{d,X},
+\qquad
+C_l \;=\; (1-m)\,C_{l,Z} + m\,C_{l,X}
+$$
+with $m=0$ the high-downforce state and $m=1$ the low-drag state.
+<p class="src">[ASSUMED] Linear blend of the two aero configurations; coefficient values are model parameters (<span class="code-ref">CarParams</span>).</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → aero_coeffs</span>.</p>
+</div>
+
+<h3>1.3 Aerodynamic drag and downforce</h3>
+<div class="eq-card">
+$$
+F_{\text{drag}} \;=\; \tfrac{1}{2}\,\rho\,C_d(m)\,A\,v^{2},
+\qquad
+F_{\text{down}} \;=\; \tfrac{1}{2}\,\rho\,C_l(m)\,A\,v^{2}
+$$
+<p class="src">[SOURCE] Classical aerodynamic force law (quadratic in speed); air density $\rho$ constant.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → run_lap (aero forces)</span>.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="traction">2. Traction Ceiling &amp; Slip-Angle Proxy</h2>
+
+<h3>2.1 Friction-limited traction ceiling</h3>
+<div class="eq-card">
+$$
+F_{\text{trac,max}} \;=\; \mu_{\text{eff}}\,F_{\text{down}}\cdot 4
+$$
+the factor 4 aggregates the four tyres.
+<p class="src">[ASSUMED] Coulomb friction limit applied to the aggregate downforce over four contact patches.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → run_lap (traction ceiling)</span>.</p>
+</div>
+
+<h3>2.2 Lateral slip-angle proxy</h3>
+<div class="eq-card">
+$$
+\beta \;=\; \operatorname{clip}\!\left(0.35\,\arctan\!\frac{v^{2}\kappa}{g},\; -0.25,\; 0.25\right)
+$$
+with $\kappa$ the local track curvature and $g$ gravity.
+<p class="src">[ASSUMED] Curvature-driven proxy for lateral slip angle; gain and clip bounds are model parameters.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → run_lap (slip angle proxy)</span>.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="eom">3. Master Equation of Motion</h2>
+
+<div class="eq-card">
+$$
+m_{\text{car}}\,\frac{dv}{dt} \;=\; F_{\text{drive}} - F_{\text{drag}} - F_{\text{roll}} - F_{\text{grade}} - F_{\text{brake}}
+$$
+with the resistive terms
+$$
+F_{\text{roll}} \;=\; C_{rr}\,m_{\text{car}}\,g\,\cos\theta,
+\qquad
+F_{\text{grade}} \;=\; m_{\text{car}}\,g\,\sin\theta
+$$
+and $F_{\text{drive}} = \min\!\bigl(F_{\text{trac,max}},\, P_{\text{drive}}/v\bigr)$, $\theta$ the local grade angle.
+<p class="src">[SOURCE] Newton's second law for longitudinal vehicle dynamics; rolling resistance and grade are standard resistive forces.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → run_lap (longitudinal forces, velocity update)</span>.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="thermal">4. Tyre Thermal Model &amp; Grip Window</h2>
+
+<h3>4.1 Tyre bulk-temperature ODE</h3>
+<div class="eq-card">
+$$
+\frac{dT}{dt} \;=\; k_{\text{heat}}\,E_{\text{slip}} - k_{\text{cool}}\,(T - T_{\text{track}}),
+\qquad
+E_{\text{slip}} \;=\; \bigl(|\beta| + 0.25\,b\bigr)\,v^{2}\cdot 0.1
+$$
+with $b$ the brake proxy and $T_{\text{track}}$ the track surface temperature.
+<p class="src">[ASSUMED] Single-bulk (lumped-capacitance) tyre temperature — no radial gradient; heating/cooling coefficients and the slip-energy scaling are model parameters.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → run_lap (tyre temperature ODE)</span>.</p>
+</div>
+
+<h3>4.2 Gaussian thermal grip window</h3>
+<div class="eq-card">
+$$
+f_T \;=\; \exp\!\left(-\frac{(T - T_{\text{opt}})^{2}}{2\,\sigma^{2}}\right),
+\qquad
+\mu_{\text{eff}} \;=\; \mu_0\,f_T\,(1 - k_w\,\text{wear})
+$$
+grip peaks at $T=T_{\text{opt}}$ ($f_T=1$) and falls off over the thermal half-width $\sigma$.
+<p class="src">[ASSUMED] Gaussian grip-temperature window with a linear wear-degradation factor; $T_{\text{opt}}$, $\sigma$, $\mu_0$, $k_w$ are model parameters.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → grip_window, mu_effective</span>.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="wear">5. Tyre Wear</h2>
+
+<div class="eq-card">
+$$
+\frac{dw}{dt} \;=\; k_w\,E_{\text{slip}}\,\bigl[\,0.6 + 0.8\,(1 - f_T)\,\bigr]
+$$
+wear accumulates monotonically and accelerates away from the optimum grip temperature.
+<p class="src">[ASSUMED] Slip-energy-driven wear with a thermal penalty bracket; coefficients are model parameters.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → run_lap (wear ODE)</span>.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="ers">6. ERS State of Charge</h2>
+
+<div class="eq-card">
+$$
+\frac{d\,\text{SOC}}{dt} \;=\; -\frac{P_{\text{bat}}}{E_{\text{bat}}}
+$$
+with $P_{\text{bat}}>0$ on deploy and $P_{\text{bat}}<0$ on regeneration; deploy is gated on SOC and braking is the regen trigger.
+<p class="src">[ASSUMED] Battery energy balance with a deploy/regen gate; power ceilings ($P_{\text{MGU-K,max}}$, $P_{\text{regen,max}}$) and $E_{\text{bat}}$ are model parameters.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → ers_power, run_lap (SOC ODE)</span>.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="integration">7. Space-Marched Integration</h2>
+
+<div class="eq-card">
+$$
+\Delta t_i \;=\; \frac{\Delta s}{v_i\,\cos\beta_i + \varepsilon},
+\qquad
+t_{\text{lap}} \;=\; \sum_i \Delta t_i
+$$
+the six state variables ($v,\ \beta,\ \text{SOC},\ \text{fuel},\ T_{\text{tire}},\ \text{wear}$) are advanced node-by-node along arc length $s$; the local time step follows from the along-track speed, and $\varepsilon$ guards against division by zero.
+<p class="src">[SOURCE] Explicit space-marched (forward-Euler in $s$) integration; step $\Delta s = L/N$.</p>
+<p>Code: <span class="code-ref">src/simulation/physics_model.py → run_lap (integration loop)</span>.</p>
+</div>
+
+<div class="disclaimer">
+<strong>Disclaimer:</strong> Research tool only. Not for design, fitness-for-service, or safety-critical decisions without site-specific calibration and independent PE review. The relations above are standard classical mechanics combined with engineering coefficients tuned for this model; parameters and proxies that are modelling choices rather than derived quantities are marked <code>[ASSUMED]</code>. No proprietary data and no external standard or paper are used. Results are deterministic (fixed seed 42 in the track geometry).
+</div>
+
+<footer>
+  Integrity Code Series — Week 3 · Felipe Rocha · 9 / 9 physics-consistency tests passing<br>
+  Browse the generated panels in <code>assets/outputs/</code> for visual results.
+</footer>
+
+</body>
+</html>
