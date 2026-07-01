@@ -96,36 +96,39 @@ python src/visualization/generate_gif.py
 
 ## Governing Equations
 
+[**view the full rendered reference**](https://htmlpreview.github.io/?https://github.com/felipearocha/Integrity-code-series-3/blob/main/docs/equations.html)
+
 Full rendered (MathJax) reference: **[docs/equations.html](docs/equations.html)** — open in any browser.
 Every relation below is transcribed from `src/simulation/physics_model.py`; standard-mechanics
 relations are tagged `[SOURCE]` and model-specific proxies/coefficients `[ASSUMED]` in the rendered page.
 
 **Aero mode filter (spatial ODE):**
-  dm/ds = (m_raw - m) / tau     tau = 40 m
 
-**Aerodynamic forces:**
-  F_drag = 0.5 * rho * Cd(m) * A * v^2
-  F_down = 0.5 * rho * Cl(m) * A * v^2
+$$ \frac{dm}{ds} \;=\; \frac{m_{\text{raw}} - m}{\tau_{\text{aero}}}, \qquad \tau_{\text{aero}} = 40\ \text{m} $$
 
-**Traction ceiling:**
-  F_trac_max = mu_eff * F_down * 4
+**Aerodynamic drag and downforce:**
 
-**Tyre temperature ODE:**
-  dT/dt = k_heat * E_slip - k_cool * (T - T_track)
-
-**Gaussian grip window:**
-  f_T = exp( -(T - T_opt)^2 / (2 * sigma^2) )
-  mu_eff = mu0 * f_T * (1 - k_w * wear)
-
-**ERS SOC ODE:**
-  dSOC/dt = -P_bat / E_bat
+$$ F_{\text{drag}} \;=\; \tfrac{1}{2}\,\rho\,C_d(m)\,A\,v^{2}, \qquad F_{\text{down}} \;=\; \tfrac{1}{2}\,\rho\,C_l(m)\,A\,v^{2} $$
 
 **Master equation of motion:**
-  m * dv/dt = F_drive - F_drag - F_roll - F_grade - F_brake
 
-**Integration:**
-  dt_i = ds / (v_i * cos(beta_i) + eps)
-  t_lap = sum(dt_i)
+$$ m_{\text{car}}\,\frac{dv}{dt} \;=\; F_{\text{drive}} - F_{\text{drag}} - F_{\text{roll}} - F_{\text{grade}} - F_{\text{brake}} $$
+
+**Tyre temperature ODE:**
+
+$$ \frac{dT}{dt} \;=\; k_{\text{heat}}\,E_{\text{slip}} - k_{\text{cool}}\,(T - T_{\text{track}}), \qquad E_{\text{slip}} \;=\; \bigl(|\beta| + 0.25\,b\bigr)\,v^{2}\cdot 0.1 $$
+
+**Gaussian grip window:**
+
+$$ f_T \;=\; \exp\!\left(-\frac{(T - T_{\text{opt}})^{2}}{2\,\sigma^{2}}\right), \qquad \mu_{\text{eff}} \;=\; \mu_0\,f_T\,(1 - k_w\,\text{wear}) $$
+
+**ERS SOC ODE:**
+
+$$ \frac{d\,\text{SOC}}{dt} \;=\; -\frac{P_{\text{bat}}}{E_{\text{bat}}} $$
+
+**Space-marched integration:**
+
+$$ \Delta t_i \;=\; \frac{\Delta s}{v_i\,\cos\beta_i + \varepsilon}, \qquad t_{\text{lap}} \;=\; \sum_i \Delta t_i $$
 
 ## Key parameters
 
